@@ -371,12 +371,26 @@ function aiInput(me,opp,s){
 
 /* ================= ネット ================= */
 const BROKERS=['wss://broker.emqx.io:8084/mqtt','wss://broker.hivemq.com:8884/mqtt','wss://test.mosquitto.org:8081'];
+const RELAY='wss://strike-arena-relay.tsubasa-kanke.workers.dev/r/';
 const RTC_CFG={iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'},{urls:'stun:stun.cloudflare.com:3478'}]};
-const Net={cli:null,room:'',id:'',host:false,peer:null,active:false,lastRx:0,pc:null,dc:null,rtcOpen:false,rtcFail:false,pend:[],
- sendFast(o){ // 直結が開いていればそちら、無ければ中継
+const Net={cli:null,room:'',id:'',host:false,peer:null,active:false,lastRx:0,pc:null,dc:null,rtcOpen:false,rtcFail:false,pend:[],ws:null,wsOpen:false,peerWs:false,
+ mode(){ return this.rtcOpen?'p2p':(this.wsOpen&&this.peerWs?'edge':'far'); },
+ sendFast(o){ // 直結 → 近い中継(Cloudflare) → 遠い中継(ブローカー) の順に使う
   if(this.rtcOpen&&this.dc&&this.dc.readyState==='open'){ o.f=this.id; try{this.dc.send(JSON.stringify(o));return true}catch(e){} }
+  if(this.wsOpen&&this.peerWs&&this.ws&&this.ws.readyState===1){ o.f=this.id; try{this.ws.send(JSON.stringify(o));return false}catch(e){} }
   this.send(o); return false;
  },
+ openRelay(){
+  this.closeWS(); let ws;
+  try{ws=new WebSocket(RELAY+this.room)}catch(e){return}
+  this.ws=ws;
+  const hi=()=>{ if(ws.readyState===1)try{ws.send(JSON.stringify({t:'wsh',f:this.id}))}catch(e){} };
+  ws.onopen=()=>{ this.wsOpen=true;hi();this.wsT=setInterval(()=>{ if(this.peerWs||this.ws!==ws){clearInterval(this.wsT);return} hi() },500);lobbyUpdate() };
+  ws.onclose=()=>{ if(this.ws===ws){this.wsOpen=false;this.peerWs=false;lobbyUpdate()} };
+  ws.onerror=()=>{};
+  ws.onmessage=ev=>{ try{ const m=JSON.parse(ev.data); if(m.f&&m.f===this.peer){ if(!this.peerWs){this.peerWs=true;hi();lobbyUpdate()} if(m.t!=='wsh')onNetMsg(m) } }catch(e){} };
+ },
+ closeWS(){ clearInterval(this.wsT); try{this.ws&&this.ws.close()}catch(e){} this.ws=null;this.wsOpen=false;this.peerWs=false; },
  startRTC(initiator){
   this.closeRTC();
   let pc;try{pc=new RTCPeerConnection(RTC_CFG)}catch(e){this.rtcFail=true;return}
@@ -427,7 +441,7 @@ const Net={cli:null,room:'',id:'',host:false,peer:null,active:false,lastRx:0,pc:
  },
  leave(silent){
   if(this.cli){ if(!silent&&this.cli.connected)this.send({t:'bye'}); const c=this.cli; this.cli=null; this.active=false; setTimeout(()=>{try{c.end(true)}catch(e){}},200); }
-  this.closeRTC();this.active=false;this.peer=null;
+  this.closeRTC();this.closeWS();this.active=false;this.peer=null;
  }
 };
 addEventListener('beforeunload',()=>{ if(Net.cli&&Net.active)Net.send({t:'bye'}); });
@@ -438,7 +452,7 @@ function lobbyUpdate(){
  if(G.mode!=='online'){ return; }
  const connected=!!Net.peer;
  $('roomInfo').innerHTML=`<div class="lbl">ルームコード</div><div class="code">${Net.room}</div>`;
- const link=Net.rtcOpen?'　🟢 直結P2P（速い）':(Net.rtcFail?'　🟡 中継モード（遅め）':'　接続方法を確認中…');
+ const md=Net.mode(),link=md==='p2p'?'　🟢 直結P2P（速い）':md==='edge'?'　🟢 近い中継（東京・速め）':(Net.rtcFail?'　🟡 遠い中継（遅め）':'　接続方法を確認中…');
  $('oppInfo').textContent=connected?`相手: ${L.oppCh!==null?CHARS[L.oppCh].name:'選択中…'} ${L.oppRdy?'✅ 準備OK':'（準備中）'}${link}`:'相手を待ってるよ… コードを友達に教えてね';
  $('bStart').disabled=!connected;
  $('bStart').textContent=L.myRdy?'準備OK！（取り消す）':'準備OK！';
@@ -455,12 +469,12 @@ function tryStartOnline(){
 function onNetMsg(m){
  if(m.t==='hello'){
   if(Net.host){
-   if(!Net.peer||Net.peer===m.f){ const first=Net.peer!==m.f; Net.peer=m.f;Net.lastRx=performance.now();Net.send({t:'welcome',to:m.f});sendCh();lobbyUpdate(); if(first||!Net.pc)Net.startRTC(true); }
+   if(!Net.peer||Net.peer===m.f){ const first=Net.peer!==m.f; Net.peer=m.f;Net.lastRx=performance.now();Net.send({t:'welcome',to:m.f});sendCh();lobbyUpdate(); if(first||!Net.pc)Net.startRTC(true); if(first||!Net.ws)Net.openRelay(); }
    else Net.send({t:'full',to:m.f});
   }
   return;
  }
- if(m.t==='welcome'){ if(!Net.host&&m.to===Net.id&&!Net.peer){ Net.peer=m.f;Net.lastRx=performance.now();clearTimeout(Net.helloT);$('bMsg').style.display='';openSelect('online');sendCh();lobbyUpdate(); } return; }
+ if(m.t==='welcome'){ if(!Net.host&&m.to===Net.id&&!Net.peer){ Net.peer=m.f;Net.lastRx=performance.now();clearTimeout(Net.helloT);$('bMsg').style.display='';openSelect('online');sendCh();lobbyUpdate();Net.openRelay(); } return; }
  if(m.t==='full'){ if(m.to===Net.id){ clearTimeout(Net.helloT);Net.leave(true);showMsg('そのルームはもう満員だよ'); } return; }
  if(m.f!==Net.peer)return;
  Net.lastRx=performance.now();
@@ -475,7 +489,7 @@ function onNetMsg(m){
  else if(m.t==='po'){ const r=performance.now()-m.ts; RB.rtt=RB.rtt?RB.rtt*.7+r*.3:r; }
 }
 function peerGone(){
- Net.closeRTC();
+ Net.closeRTC();Net.closeWS();
  if(G.phase==='idle'){ Net.peer=null;L.oppCh=null;L.oppRdy=false;
   if(Net.host)lobbyUpdate(); else { Net.leave(true);showMsg('ルームが閉じられたよ'); } }
  else { netLost('相手が退出したよ'); }
@@ -550,7 +564,7 @@ function simStep(inps){
 /* ---- ロールバック通信：入力だけ送り、相手の入力が遅れたら予測して進め、違ったら巻き戻す ---- */
 const RB={on:false,rtt:0};
 function rbInit(){ Object.assign(RB,{on:true,frame:0,sample:0,lin:[],rin:[],used:[],snaps:{},rcf:-1,pAck:-1,rb:null,lastR:0,lastF:-1,
- delay:Net.rtcOpen?2:4,maxPred:Net.rtcOpen?10:44,stall:0,sendT:0,rolled:0}); }
+ delay:({p2p:2,edge:3,far:4})[Net.mode()],maxPred:({p2p:10,edge:18,far:44})[Net.mode()],stall:0,sendT:0,rolled:0}); }
 function rbRemote(f){ const v=RB.rin[f]; return v!==undefined?v:(RB.lastR&~(7<<9)); }
 function rbSim(f){
  const R=RB,r=rbRemote(f);R.used[f]=r;
@@ -571,13 +585,13 @@ function rbRecv(m){
 }
 function rbTick(){
  const R=RB;if(!R.on)return;
- R.maxPred=Net.rtcOpen?10:44;
+ R.maxPred=({p2p:10,edge:18,far:44})[Net.mode()];
  if(R.sample<R.frame+R.delay){
   const km=readKeys([KEYS1,KEYS2]),cmd=takeCmd();
   while(R.sample<R.frame+R.delay){ R.lin[R.sample]=R.sample<R.delay?0:encInp(km,R.sample===R.frame+R.delay-1?cmd:null); R.sample++; }
  }
  R.sendT++;
- if(Net.rtcOpen||R.sendT%2===0){ const s0=Math.max(R.pAck+1,0); Net.sendFast({t:'i',m:G.mid,s:s0,a:R.lin.slice(s0,R.sample),k:R.rcf}); }
+ if(Net.mode()!=='far'||R.sendT%2===0){ const s0=Math.max(R.pAck+1,0); Net.sendFast({t:'i',m:G.mid,s:s0,a:R.lin.slice(s0,R.sample),k:R.rcf}); }
  if(R.rb!==null){ // 予測が外れた → その時点まで戻して、本当の入力でやり直す
   const to=R.rb;R.rb=null;
   if(R.snaps[to]!==undefined){
@@ -780,8 +794,8 @@ function drawHUD(){
  txt(String(Math.max(0,Math.ceil(G.time/60))),W/2,54,34,G.time<600?'#ff6b6b':'#fff');
  if(G.mode==='online'){
   ctx.font='bold 12px sans-serif';ctx.textAlign='center';
-  ctx.fillStyle=Net.rtcOpen?'#7dff9a':'#ffd166';
-  ctx.fillText((Net.rtcOpen?'P2P ':'中継 ')+(RB.rtt?Math.round(RB.rtt)+'ms':'…')+(RB.stall>20?'  通信待ち…':''),W/2,78);
+  ctx.fillStyle=Net.mode()==='far'?'#ffd166':'#7dff9a';
+  ctx.fillText(({p2p:'P2P ',edge:'中継(近) ',far:'中継(遠) '})[Net.mode()]+(RB.rtt?Math.round(RB.rtt)+'ms':'…')+(RB.stall>20?'  通信待ち…':''),W/2,78);
  }
 }
 function drawBanner(){
