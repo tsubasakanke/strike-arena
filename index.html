@@ -978,16 +978,16 @@ function snapshot(){
 }
 function restore(str){ const o=JSON.parse(str); Object.assign(G,o.g); o.f.forEach((d,i)=>Object.assign(fs[i],d)); }
 /* 時間が止まっている・遅い間でもガードの押下を逃さない（パリィ返し用）*/
-function clashBuf(inps){
+function clashBuf(inps,early){
  for(const f of fs){
   const i=inps[f.slot],g=!!(i&&i.g),o=fs[1-f.slot];
-  if(g&&!f.pv.g&&o.mvk==='jpc'&&ATKST.has(o.st)&&f.st!=='ko')f.cgp=1;
+  if(!early&&g&&!f.pv.g&&o.mvk==='jpc'&&ATKST.has(o.st)&&f.st!=='ko')f.cgp=1;
   f.pv.g=g;
  }
 }
 function simStep(inps){
  G.pt++;
- if(G.hs>0){G.hs--;clashBuf(inps);return} // ヒットストップ：完全停止
+ if(G.hs>0){G.hs--;clashBuf(inps,G.hs>8);return} // 停止の最初の数フレームに押したガードは数えない // ヒットストップ：完全停止
  if(G.sl>0&&(--G.sl)%3){clashBuf(inps);return} // スロー：3回に1回だけ進む
  const go=G.phase==='fight',[a,b]=fs;
  for(const f of fs){ const opp=fs[1-f.slot]; f.step(inps[f.slot],opp,go); f.stepFB(opp); }
