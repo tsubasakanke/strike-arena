@@ -102,7 +102,7 @@ input{font:inherit;font-size:min(4vw,22px);font-weight:800;text-transform:upperc
   <tr><td><b>足払い</b></td><td>↓ ＋ K</td><td>相手を転ばせる</td></tr>
   <tr><td><b>超必殺</b></td><td>↓ ↘ → ↓ ↘ → ＋ L</td><td>ゲージ満タンで極太ビーム（殴る・殴られるで貯まる）</td></tr>
  </table>
- <p style="font-size:min(2.5vw,14px)"><b>ジャストパリィ</b>：ガードを「押した瞬間」の約0.08秒（5F）以内に攻撃が当たると、ダメージ0＋時間が止まってスローになり、自動で相手の背後に瞬歩して斬る「ジャストカウンター（黒閃）」が入る！押しっぱなし・連打・早押しは失敗して0.5秒パリィ不可。投げと背後の攻撃は不可。<br><b>パリィ返し</b>：ジャストカウンターが飛んでくる間（パリィが決まった直後〜当たるまで、止まっている間もOK）にガードを<b>押せば</b>、タイミングは気にせず打ち消し合い（PARRY CLASH）、次の反撃ダメージが ×2 → ×4 → ×8 → ×16… と<b>無限に</b>倍々になる。返すたびに毎回ガードを押し直し（押しっぱなしは不可）。受ける側に「GUARD!」の合図が出るよ</p>
+ <p style="font-size:min(2.5vw,14px)"><b>ジャストパリィ</b>：ガードを「押した瞬間」の約0.08秒（5F）以内に攻撃が当たると、ダメージ0＋時間が止まってスローになり、自動で相手の背後に瞬歩して斬る「ジャストカウンター（黒閃）」が入る！押しっぱなし・連打・早押しは失敗して0.5秒パリィ不可。投げと背後の攻撃は不可。<br><b>パリィ返し</b>：ジャストカウンターが飛んでくる間（パリィが決まった直後〜当たるまで、止まっている間もOK）にガードを<b>押せば</b>、タイミングは気にせず打ち消し合い（PARRY CLASH）、次の反撃ダメージが ×2 → ×4 → ×8 → ×16… と<b>無限に</b>倍々になり、返し合うほど<b>どんどん速く</b>なる。返すたびに毎回ガードを押し直し（押しっぱなしは不可）。受ける側に「GUARD!」の合図が出るよ</p>
  <p style="font-size:min(2.4vw,13px)">パンチは上段（しゃがんでかわす）／キックは下段寄り（ジャンプでかわす）／スマホは技ボタンで一発入力／Esc でメニュー</p>
  <button class="sub" data-go="menu">もどる</button>
 </div>
@@ -295,6 +295,10 @@ function finMove(mv){
 /* ジャストパリィ成功時の自動反撃：相手の背後へ瞬歩して斬る（背後からなのでガード不能）*/
 const JPC=finMove({nm:'ジャストカウンター',pose:'rush',dur:32,nofric:true,jpc:1,tp:{t:3,dx:62},
  hits:[HB(10,13,{rng:100,top:180,bot:-30,dmg:22,kb:15,stun:44,lift:9,jpc:1})]});
+const JPC_M=finMove({nm:'ジャストカウンター',pose:'rush',dur:26,nofric:true,jpc:1,tp:{t:2,dx:62},hits:[HB(7,10,{rng:100,top:180,bot:-30,dmg:22,kb:15,stun:44,lift:9,jpc:1})]});
+const JPC_F=finMove({nm:'ジャストカウンター',pose:'rush',dur:22,nofric:true,jpc:1,tp:{t:2,dx:62},hits:[HB(6,9,{rng:100,top:180,bot:-30,dmg:22,kb:15,stun:44,lift:9,jpc:1})]});
+const jpcFor=n=>n>=7?JPC_F:n>=4?JPC_M:JPC; // 返し合うほど反撃が出るのも速くなる
+const clashLv=n=>{const L=Math.max(1,n);return {hs:Math.max(5,14-2*(L-1)),sl:Math.max(18,42-3*(L-1)),sp:Math.min(1,1/3+.14*(L-1))}};
 Object.values(DEFMV).forEach(finMove);
 CHARS.forEach(c=>Object.values(c.moves).forEach(finMove));
 const ATKST=new Set(['punch','kick','spec','dp','tatsu','rush','dive','slam','stretch','throw','super','cast','summon','roar','counter']);
@@ -353,7 +357,7 @@ document.querySelectorAll('#touch button').forEach(b=>{
 });
 
 /* ================= ファイター ================= */
-const G={flash:0,seq:0,mode:'',my:0,phase:'idle',pt:0,rd:1,sc:[0,0],w:-1,reason:'',time:3600,shake:0,auth:true,fx:[],tick:0,chs:[0,1],hs:0,sl:0,chain:0,cin:null,practice:false,paused:false};
+const G={flash:0,seq:0,mode:'',my:0,phase:'idle',pt:0,rd:1,sc:[0,0],w:-1,reason:'',time:3600,shake:0,auth:true,fx:[],tick:0,chs:[0,1],hs:0,sl:0,sp:1/3,sa:0,chain:0,cin:null,practice:false,paused:false};
 let fs=[];
 
 const FBP=(f,n)=>Object.assign({},BASEFB,(f.ch.fbs||{})[n]);
@@ -403,7 +407,7 @@ class F{
    if(this.st!=='hit')this.pst=0;
    { const inc=opp.mvk==='jpc'&&ATKST.has(opp.st); if(!inc)this.cgp=0; else if(ge)this.cgp=1; } // 毎回、ガードを押し直す必要がある（押しっぱなしは不可） // パリィ返し用：反撃が飛んでくる間にガードを押せていればOK（タイミング不問）
    const can=this.ground&&(this.st==='idle'||this.st==='guard'||(this.st==='hit'&&this.pst));
-   if(ge&&this.pcd<=0&&this.gOff>=(G.sl>0?3:JP_REL)&&can)this.jp=G.sl>0?2:JP_WIN; // スロー中は1ステップ＝実3フレームなので、実時間で元の判定(5F/8F)と同じ幅にそろえる
+   if(ge&&this.pcd<=0&&this.gOff>=(G.sl>0?Math.max(1,Math.round(JP_REL*G.sp)):JP_REL)&&can)this.jp=G.sl>0?Math.max(1,Math.round(JP_WIN*G.sp)):JP_WIN; // スロー中は1ステップ＝実3フレームなので、実時間で元の判定(5F/8F)と同じ幅にそろえる
    else if(ge&&this.pcd<=0&&this.jp===0&&can){this.pcd=JP_PEN;if(!QUIET){G.fx.push({kind:'txt',x:this.x,y:this.y-(this.ch.h||122)-14,t:0,life:22,txt:'MISS',col:'#94a3b8'});snd('jpmiss')}} // 連打ペナルティ
    if(inp.g&&go)this.gOff=0;else if(this.gOff<99)this.gOff++;
   }
@@ -569,7 +573,7 @@ class F{
   if((this.jp>0||(pl.jpc&&this.cgp))&&!pl.throw&&(pl.dir===-this.face||pl.jpc)&&this.ground){ // ジャストパリィ成功（ジャストカウンターは背後からでもパリィできる）
    G.chain=pl.jpc?Math.min(40,G.chain+1):0; // パリィ返しのたびに、次の反撃ダメージが倍
    if(TUT.on&&this.slot===0)tev(pl.jpc?'clash':'jp');
-   this.jp=0;this.pcd=0;this.jf=14;this.inv=34;this.mvk='jpc';this.mvd=JPC;this.st=JPC.pose;this.t=0;this.hd=0;this.landed=false;this.pry=0;this.crAtk=false;this.vx=0;this.cr=false;this.hist.length=0;this.buf=null;
+   this.jp=0;this.pcd=0;this.jf=14;this.inv=34;this.mvk='jpc';this.mvd=jpcFor(G.chain);this.st=JPC.pose;this.t=0;this.hd=0;this.landed=false;this.pry=0;this.crAtk=false;this.vx=0;this.cr=false;this.hist.length=0;this.buf=null;
    this.mt=Math.min(100,this.mt+20);
    return 'jp';
   }
@@ -614,7 +618,7 @@ function deliver(opp,pl,by){
  if(b==='jp'){ // 攻撃側はゲージも貯まらず、近接ならはじかれて大きな隙
   if(by&&!pl.fbp&&by.st!=='ko'){by.st='hit';by.t=0;by.stun=pl.jpc?44:34;by.vx=pl.jpc?0:-pl.dir*9;by.vy=Math.min(by.vy,0);by.hd=0;by.pry=0;by.arm=0;by.jp=0;by.inv=0;by.pst=1}
   if(by)by.cgp=0;
-  G.hs=14;G.sl=40; // 一瞬止まってから、時間がゆっくりになる
+  { const lv=clashLv(pl.jpc?G.chain:0);G.hs=lv.hs;G.sl=lv.sl;G.sp=lv.sp;G.sa=0 } // 一瞬止まってから、時間がゆっくりになる（返し合うほど止まりが短く・流れが速く）
   if(!QUIET){
    const x=opp.x+opp.face*30,y=opp.y-(opp.bodyH*.62);
    G.fx.push({kind:'jp',x,y,t:0,life:30});
@@ -631,7 +635,7 @@ function deliver(opp,pl,by){
  if(TUT.on&&by&&by.slot===0&&b===false){ if(pl.throw)tev('throw');else if(pl.jpc)tev('counter');else if(pl.fbp)tev('hit_fb');else if(by.mvk==='p')tev('hit_p');else if(by.mvk==='k')tev(by.crAtk?'sweep':'hit_k') }
  if(by)by.mt=Math.min(100,by.mt+pl.dmg*1.3);
  if(pl.jpc&&b!==null){ // 反撃命中：止まって、また遅くなる
-  const mult=Math.pow(2,G.chain);G.chain=0;G.hs=16;G.sl=44;
+  const mult=Math.pow(2,G.chain);G.chain=0;G.hs=16;G.sl=44;G.sp=1/3;G.sa=0;
   if(!QUIET){
    const x=opp.x,y=opp.y-opp.bodyH*.55;
    G.fx.push({kind:'slash',x,y,t:0,life:22,dir:by?by.face:1});
@@ -921,7 +925,7 @@ function netLost(t){ endGame(); Net.leave(true); showMsg(t); }
 /* ================= 試合進行 ================= */
 function startMatch(chs,mode,my,mid){
  G.paused=false;$('gear').style.display=mode==='online'?'none':'block';
- G.hs=0;G.sl=0;G.chain=0;G.cin=null;G.mid=mid||'';G.seq=0;G.mode=mode;G.my=my;G.chs=chs;G.sc=[0,0];G.rd=1;G.fx=[];G.oppRm=false;G.myRm=false;
+ G.hs=0;G.sl=0;G.sp=1/3;G.sa=0;G.chain=0;G.cin=null;G.mid=mid||'';G.seq=0;G.mode=mode;G.my=my;G.chs=chs;G.sc=[0,0];G.rd=1;G.fx=[];G.oppRm=false;G.myRm=false;
  fs=[0,1].map(i=>new F(i,chs[i],'local'));
  G.ai={};G.auth=true;if(mode==='online')rbInit();else RB.on=false;
  inGame=true;hideOv();$('touch').style.display=('ontouchstart' in window)?'block':'none';
@@ -930,7 +934,7 @@ function startMatch(chs,mode,my,mid){
 }
 function setPhase(ph,m){ applyPhase(ph,Object.assign({ph},m)); }
 function applyPhase(ph,m){
- G.phase=ph;G.pt=0;G.hs=0;G.sl=0;G.chain=0;G.cin=null;if(m.q)G.seq=m.q;
+ G.phase=ph;G.pt=0;G.hs=0;G.sl=0;G.sp=1/3;G.sa=0;G.chain=0;G.cin=null;if(m.q)G.seq=m.q;
  if(m.sc)G.sc=m.sc.slice();
  if(m.rd)G.rd=m.rd;
  if(ph==='intro'){ fs.forEach(f=>f.reset()); $('end').classList.remove('on'); G.fx=[]; }
@@ -973,7 +977,7 @@ function encInp(o,cmd){
 }
 function decInp(b){ return {l:!!(b&1),r:!!(b&2),u:!!(b&4),d:!!(b&8),p:!!(b&16),k:!!(b&32),s:!!(b&64),g:!!(b&128),t:!!(b&256),cmd:CMDS[(b>>9)&7]||null}; }
 function snapshot(){
- return JSON.stringify({g:{phase:G.phase,pt:G.pt,rd:G.rd,sc:G.sc,w:G.w,reason:G.reason,time:G.time,hs:G.hs,sl:G.sl,chain:G.chain},
+ return JSON.stringify({g:{phase:G.phase,pt:G.pt,rd:G.rd,sc:G.sc,w:G.w,reason:G.reason,time:G.time,hs:G.hs,sl:G.sl,sp:G.sp,sa:G.sa,chain:G.chain},
   f:fs.map(f=>{const o={};for(const k in f){if(k==='ch'||k==='ctl'||k==='tx'||k==='ty'||k==='dhp')continue;o[k]=f[k]}return o})});
 }
 function restore(str){ const o=JSON.parse(str); Object.assign(G,o.g); o.f.forEach((d,i)=>Object.assign(fs[i],d)); }
@@ -988,7 +992,7 @@ function clashBuf(inps,early){
 function simStep(inps){
  G.pt++;
  if(G.hs>0){G.hs--;clashBuf(inps,G.hs>8);return} // 停止の最初の数フレームに押したガードは数えない // ヒットストップ：完全停止
- if(G.sl>0&&(--G.sl)%3){clashBuf(inps);return} // スロー：3回に1回だけ進む
+ if(G.sl>0){G.sl--;G.sa+=G.sp;if(G.sa<1){clashBuf(inps);return}G.sa-=1} // スロー：速さ G.sp（既定1/3）。返し合うほど速くなる
  const go=G.phase==='fight',[a,b]=fs;
  for(const f of fs){ const opp=fs[1-f.slot]; f.step(inps[f.slot],opp,go); f.stepFB(opp); }
  { // 押し合い
@@ -1701,6 +1705,7 @@ function cinText(c){
   ctx.lineWidth=sz/5;ctx.strokeStyle='#7c2d12';ctx.strokeText('PARRY CLASH!',0,0);
   ctx.lineWidth=sz/12;ctx.strokeStyle='#fff';ctx.strokeText('PARRY CLASH!',0,0);
   const g=ctx.createLinearGradient(0,-sz*.8,0,0);g.addColorStop(0,'#fef9c3');g.addColorStop(1,'#f59e0b');ctx.fillStyle=g;ctx.fillText('PARRY CLASH!',0,0);ctx.restore();
+  if(c.n>=2){ctx.save();ctx.textAlign='center';ctx.font='900 italic 20px Impact,"Arial Black",sans-serif';ctx.lineWidth=5;ctx.strokeStyle='#450a0a';ctx.fillStyle='#7dd3fc';const sp=clashLv(c.n).sp*3;const tx='TEMPO ×'+sp.toFixed(1);ctx.strokeText(tx,W/2,H*.215+30);ctx.fillText(tx,W/2,H*.215+30);ctx.restore()}
   const m=Math.pow(2,c.n),sz2=Math.min(150,70+c.n*10)*(1+Math.max(0,(10-t))*.1);
   ctx.save();ctx.translate(W/2,H*.215+sz2*.95);
   ctx.font=`900 italic ${sz2}px Impact,"Arial Black",sans-serif`;
@@ -1721,8 +1726,8 @@ function cinText(c){
 const fmtMul=m=>m>=1e9?(m/1e9).toFixed(1)+'G':m>=1e6?(m/1e6).toFixed(1)+'M':m>=1e4?Math.round(m/1e3)+'K':String(m);
 function drawTelegraph(){
  for(const f of fs){
-  if(f.st!=='rush'||!f.mvd||!f.mvd.jpc||f.t>=12)continue;
-  const v=fs[1-f.slot],fin=false,k=Math.max(0,(10-f.t)/10),x=v.x,y=v.y-v.bodyH*.55,pulse=.65+.35*Math.sin(G.tick*.9);
+  if(f.st!=='rush'||!f.mvd||!f.mvd.jpc||f.t>=f.mvd.hits[0].t[0]+2)continue;
+  const hs0=f.mvd.hits[0].t[0],v=fs[1-f.slot],fin=false,k=Math.max(0,(hs0-f.t)/hs0),x=v.x,y=v.y-v.bodyH*.55,pulse=.65+.35*Math.sin(G.tick*.9);
   ctx.save();
   // 反撃する側のオーラ（誰の反撃か分かるように）
   const ay=f.y-f.bodyH*.5,gr=ctx.createRadialGradient(f.x,ay,8,f.x,ay,90);gr.addColorStop(0,f.ch.col+'cc');gr.addColorStop(1,f.ch.col+'00');
@@ -1826,7 +1831,7 @@ const TSTEPS=[
  {t:'ガード',d:`ダミーがパンチしてくる。${KB('U')} か ${KB('Space')} を<b>押し続けて</b>ガード（受けるダメージ15%）。スマホは 🛡`,goal:[['block',3,'ガード成功']],dist:62,keep:1,npc:{atk:'mid',kind:'punch'}},
  {t:'ジャストパリィ',d:`<b>ガードを「押した瞬間」</b>に攻撃が当たると成功！押しっぱなしはダメ。<br>一度離して、当たる<b>直前</b>に押し直す。早すぎ・連打は MISS で0.5秒使えないよ`,goal:[['jp',1,'パリィ成功']],dist:62,keep:1,npc:{atk:'low',kind:'punch'}},
  {t:'ジャストカウンター',d:`パリィが決まると、時間が止まって<b>自動で背後に瞬歩して斬る</b>！もう一度パリィして、反撃を最後まで見届けよう`,goal:[['counter',1,'反撃ヒット']],dist:62,keep:1,npc:{atk:'low',kind:'punch'}},
- {t:'パリィ返し',d:`今度はダミーがパリィしてくる！殴ると打ち消されて反撃が飛んでくるから、パリィが決まってから反撃が当たるまでの間に、<b>ガードを一回押せば</b>OK（止まってる間に押してもいいよ。押しっぱなしはダメ）。成功でダメージ×2、返し合うほど無限に倍々`,goal:[['clash',1,'パリィ返し']],dist:62,keep:1,npc:{jp:'on',cjp:'on',acc:'perfect'}},
+ {t:'パリィ返し',d:`今度はダミーがパリィしてくる！殴ると打ち消されて反撃が飛んでくるから、パリィが決まってから反撃が当たるまでの間に、<b>ガードを一回押せば</b>OK（止まってる間に押してもいいよ。押しっぱなしはダメ）。成功でダメージ×2、返し合うほど無限に倍々＆どんどん速く`,goal:[['clash',1,'パリィ返し']],dist:62,keep:1,npc:{jp:'on',cjp:'on',acc:'perfect'}},
  {t:'完了！',d:`これで基本は全部！<br>練習モードでは、NPCの動き・攻撃・パリィを細かく設定できるよ（ポーズ → NPC設定）`,goal:[],final:true,dist:300}
 ];
 function tutStart(i){
