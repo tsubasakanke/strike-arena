@@ -102,7 +102,7 @@ input{font:inherit;font-size:min(4vw,22px);font-weight:800;text-transform:upperc
   <tr><td><b>足払い</b></td><td>↓ ＋ K</td><td>相手を転ばせる</td></tr>
   <tr><td><b>超必殺</b></td><td>↓ ↘ → ↓ ↘ → ＋ L</td><td>ゲージ満タンで極太ビーム（殴る・殴られるで貯まる）</td></tr>
  </table>
- <p style="font-size:min(2.5vw,14px)"><b>ジャストパリィ</b>：ガードを「押した瞬間」の約0.08秒（5F）以内に攻撃が当たると、ダメージ0＋時間が止まってスローになり、自動で相手の背後に瞬歩して斬る「ジャストカウンター（黒閃）」が入る！押しっぱなし・連打・早押しは失敗して0.5秒パリィ不可。投げと背後の攻撃は不可。<br><b>パリィ返し</b>：ジャストカウンターが飛んでくる直前に出る縮む輪に合わせてガードを押し直すと打ち消し合い（PARRY CLASH）、次の反撃ダメージが ×2 → ×4 → ×8 と倍々になる</p>
+ <p style="font-size:min(2.5vw,14px)"><b>ジャストパリィ</b>：ガードを「押した瞬間」の約0.08秒（5F）以内に攻撃が当たると、ダメージ0＋時間が止まってスローになり、自動で相手の背後に瞬歩して斬る「ジャストカウンター（黒閃）」が入る！押しっぱなし・連打・早押しは失敗して0.5秒パリィ不可。投げと背後の攻撃は不可。<br><b>パリィ返し</b>：ジャストカウンターが飛んでくる間（時間が動き出してから当たるまで）にガードを<b>押せば</b>、タイミングは気にせず打ち消し合い（PARRY CLASH）、次の反撃ダメージが ×2 → ×4 → ×8 と倍々になる</p>
  <p style="font-size:min(2.4vw,13px)">パンチは上段（しゃがんでかわす）／キックは下段寄り（ジャンプでかわす）／スマホは技ボタンで一発入力／Esc でメニュー</p>
  <button class="sub" data-go="menu">もどる</button>
 </div>
@@ -362,7 +362,7 @@ class F{
  reset(){
   this.x=this.slot?700:260;this.y=FLOOR;this.vx=0;this.vy=0;this.face=this.slot?-1:1;
   this.max=this.ch.hp;this.hp=this.max;this.dhp=this.max;
-  this.st='idle';this.t=0;this.stun=0;this.hd=0;this.landed=false;this.pry=0;this.slow=0;this.arm=0;this.cr=false;this.crAtk=false;this.jp=0;this.pcd=0;this.gOff=99;this.jf=0;this.pst=0;
+  this.st='idle';this.t=0;this.stun=0;this.hd=0;this.landed=false;this.pry=0;this.slow=0;this.arm=0;this.cr=false;this.crAtk=false;this.jp=0;this.pcd=0;this.gOff=99;this.jf=0;this.pst=0;this.cgp=0;
   this.fb=[];this.fbCool=0;this.pv={};this.buf=null;this.bt=0;this.anim=0;this.tx=this.x;this.ty=this.y;
   this.hist=[];this.dj=false;this.inv=0;this.tapF=-99;this.tapB=-99;this.dashAt=-99;this.prevH=0;this.dd=1;this.mvk='p';this.mvd=DEFMV.p;
  }
@@ -400,7 +400,8 @@ class F{
   { // ジャストパリィ窓：ガードの「押した瞬間」だけ。押しっぱなし・連打・空中・技中では開かない
    if(this.pcd>0)this.pcd--; if(this.jf>0)this.jf--;
    if(this.jp>0&&--this.jp===0){this.pcd=JP_PEN;if(!QUIET){G.fx.push({kind:'txt',x:this.x,y:this.y-(this.ch.h||122)-14,t:0,life:22,txt:'MISS',col:'#94a3b8'});snd('jpmiss')}}
-   if(this.st!=='hit')this.pst=0;
+   if(this.st!=='hit'){this.pst=0;this.cgp=0}
+   if(ge&&this.pst&&this.st==='hit')this.cgp=1; // パリィ返し用：反撃が飛んでくる間にガードを押せていればOK（タイミング不問）
    const can=this.ground&&(this.st==='idle'||this.st==='guard'||(this.st==='hit'&&this.pst));
    if(ge&&this.pcd<=0&&this.gOff>=(G.sl>0?3:JP_REL)&&can)this.jp=G.sl>0?2:JP_WIN; // スロー中は1ステップ＝実3フレームなので、実時間で元の判定(5F/8F)と同じ幅にそろえる
    else if(ge&&this.pcd<=0&&this.jp===0&&can){this.pcd=JP_PEN;if(!QUIET){G.fx.push({kind:'txt',x:this.x,y:this.y-(this.ch.h||122)-14,t:0,life:22,txt:'MISS',col:'#94a3b8'});snd('jpmiss')}} // 連打ペナルティ
@@ -563,7 +564,7 @@ class F{
    if(!QUIET){G.fx.push({kind:'block',x:this.x+this.face*24,y:this.y-80,t:0,dir:1});G.flash=Math.max(G.flash,5);snd('block')}
    return null;
   }
-  if(this.jp>0&&!pl.throw&&(pl.dir===-this.face||pl.jpc)&&this.ground){ // ジャストパリィ成功（ジャストカウンターは背後からでもパリィできる）
+  if((this.jp>0||(pl.jpc&&this.cgp))&&!pl.throw&&(pl.dir===-this.face||pl.jpc)&&this.ground){ // ジャストパリィ成功（ジャストカウンターは背後からでもパリィできる）
    G.chain=pl.jpc?Math.min(3,G.chain+1):0; // パリィ返しのたびに、次の反撃ダメージが倍
    if(TUT.on&&this.slot===0)tev(pl.jpc?'clash':'jp');
    this.jp=0;this.pcd=0;this.jf=14;this.inv=34;this.mvk='jpc';this.mvd=JPC;this.st=JPC.pose;this.t=0;this.hd=0;this.landed=false;this.pry=0;this.crAtk=false;this.vx=0;this.cr=false;this.hist.length=0;this.buf=null;
@@ -609,7 +610,7 @@ function impact(v,pl,blocked){
 function deliver(opp,pl,by){
  const b=opp.takeHit(pl);
  if(b==='jp'){ // 攻撃側はゲージも貯まらず、近接ならはじかれて大きな隙
-  if(by&&!pl.fbp&&by.st!=='ko'){by.st='hit';by.t=0;by.stun=pl.jpc?44:34;by.vx=pl.jpc?0:-pl.dir*9;by.vy=Math.min(by.vy,0);by.hd=0;by.pry=0;by.arm=0;by.jp=0;by.inv=0;by.pst=1}
+  if(by&&!pl.fbp&&by.st!=='ko'){by.st='hit';by.t=0;by.stun=pl.jpc?44:34;by.vx=pl.jpc?0:-pl.dir*9;by.vy=Math.min(by.vy,0);by.hd=0;by.pry=0;by.arm=0;by.jp=0;by.inv=0;by.pst=1;by.cgp=0}
   G.hs=14;G.sl=40; // 一瞬止まってから、時間がゆっくりになる
   if(!QUIET){
    const x=opp.x+opp.face*30,y=opp.y-(opp.bodyH*.62);
@@ -1796,7 +1797,7 @@ const TSTEPS=[
  {t:'ガード',d:`ダミーがパンチしてくる。${KB('U')} か ${KB('Space')} を<b>押し続けて</b>ガード（受けるダメージ15%）。スマホは 🛡`,goal:[['block',3,'ガード成功']],dist:62,keep:1,npc:{atk:'mid',kind:'punch'}},
  {t:'ジャストパリィ',d:`<b>ガードを「押した瞬間」</b>に攻撃が当たると成功！押しっぱなしはダメ。<br>一度離して、当たる<b>直前</b>に押し直す。早すぎ・連打は MISS で0.5秒使えないよ`,goal:[['jp',1,'パリィ成功']],dist:62,keep:1,npc:{atk:'low',kind:'punch'}},
  {t:'ジャストカウンター',d:`パリィが決まると、時間が止まって<b>自動で背後に瞬歩して斬る</b>！もう一度パリィして、反撃を最後まで見届けよう`,goal:[['counter',1,'反撃ヒット']],dist:62,keep:1,npc:{atk:'low',kind:'punch'}},
- {t:'パリィ返し',d:`今度はダミーがパリィしてくる！殴ると打ち消されて反撃が飛んでくるから、<b>縮む輪が中心に来た瞬間</b>にガードを押し直そう。成功でダメージ×2、続くほど倍々`,goal:[['clash',1,'パリィ返し']],dist:62,keep:1,npc:{jp:'on',cjp:'on',acc:'perfect'}},
+ {t:'パリィ返し',d:`今度はダミーがパリィしてくる！殴ると打ち消されて反撃が飛んでくるから、時間が動き出してから反撃が当たるまでの間に、<b>ガードを押せば</b>OK（タイミングは気にしなくていいよ。押しっぱなしはダメ）。成功でダメージ×2、続くほど倍々`,goal:[['clash',1,'パリィ返し']],dist:62,keep:1,npc:{jp:'on',cjp:'on',acc:'perfect'}},
  {t:'完了！',d:`これで基本は全部！<br>練習モードでは、NPCの動き・攻撃・パリィを細かく設定できるよ（ポーズ → NPC設定）`,goal:[],final:true,dist:300}
 ];
 function tutStart(i){
