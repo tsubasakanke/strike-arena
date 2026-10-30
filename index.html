@@ -84,7 +84,7 @@ input{font:inherit;font-size:min(4vw,22px);font-weight:800;text-transform:upperc
   <tr><td><b>足払い</b></td><td>↓ ＋ K</td><td>相手を転ばせる</td></tr>
   <tr><td><b>超必殺</b></td><td>↓ ↘ → ↓ ↘ → ＋ L</td><td>ゲージ満タンで極太ビーム（殴る・殴られるで貯まる）</td></tr>
  </table>
- <p style="font-size:min(2.5vw,14px)"><b>ジャストパリィ</b>：ガードを「押した瞬間」の約0.08秒（5F）以内に攻撃が当たると、ダメージ0＋時間が止まってスローになり、自動で相手の背後に瞬歩して斬る「ジャストカウンター（黒閃）」が入る！押しっぱなし・連打・早押しは失敗して0.5秒パリィ不可。投げと背後の攻撃は不可</p>
+ <p style="font-size:min(2.5vw,14px)"><b>ジャストパリィ</b>：ガードを「押した瞬間」の約0.08秒（5F）以内に攻撃が当たると、ダメージ0＋時間が止まってスローになり、自動で相手の背後に瞬歩して斬る「ジャストカウンター（黒閃）」が入る！押しっぱなし・連打・早押しは失敗して0.5秒パリィ不可。投げと背後の攻撃は不可。<br><b>パリィ返し</b>：ジャストカウンターが飛んでくる直前に出る縮む輪に合わせてガードを押し直すと打ち消し合い（PARRY CLASH）、次の反撃ダメージが ×2 → ×4 → ×8 と倍々になる</p>
  <p style="font-size:min(2.4vw,13px)">パンチは上段（しゃがんでかわす）／キックは下段寄り（ジャンプでかわす）／スマホは技ボタンで一発入力／Esc でメニュー</p>
  <button class="sub" data-go="menu">もどる</button>
 </div>
@@ -271,8 +271,8 @@ function finMove(mv){
  mv.an=mv.an||[a,b];mv.rng=Math.max(66,...(mv.hits||[]).map(h=>h.rng));mv.hits=mv.hits||[];return mv;
 }
 /* ジャストパリィ成功時の自動反撃：相手の背後へ瞬歩して斬る（背後からなのでガード不能）*/
-const JPC=finMove({nm:'ジャストカウンター',pose:'rush',dur:26,nofric:true,jpc:1,tp:{t:3,dx:62},
- hits:[HB(7,10,{rng:100,top:180,bot:-30,dmg:22,kb:15,stun:44,lift:9,jpc:1})]});
+const JPC=finMove({nm:'ジャストカウンター',pose:'rush',dur:32,nofric:true,jpc:1,tp:{t:3,dx:62},
+ hits:[HB(10,13,{rng:100,top:180,bot:-30,dmg:22,kb:15,stun:44,lift:9,jpc:1})]});
 Object.values(DEFMV).forEach(finMove);
 CHARS.forEach(c=>Object.values(c.moves).forEach(finMove));
 const ATKST=new Set(['punch','kick','spec','dp','tatsu','rush','dive','slam','stretch','throw','super','cast','summon','roar','counter']);
@@ -329,7 +329,7 @@ document.querySelectorAll('#touch button').forEach(b=>{
 });
 
 /* ================= ファイター ================= */
-const G={flash:0,seq:0,mode:'',my:0,phase:'idle',pt:0,rd:1,sc:[0,0],w:-1,reason:'',time:3600,shake:0,auth:true,fx:[],tick:0,chs:[0,1],hs:0,sl:0,cin:null};
+const G={flash:0,seq:0,mode:'',my:0,phase:'idle',pt:0,rd:1,sc:[0,0],w:-1,reason:'',time:3600,shake:0,auth:true,fx:[],tick:0,chs:[0,1],hs:0,sl:0,chain:0,cin:null};
 let fs=[];
 
 const FBP=(f,n)=>Object.assign({},BASEFB,(f.ch.fbs||{})[n]);
@@ -338,7 +338,7 @@ class F{
  reset(){
   this.x=this.slot?700:260;this.y=FLOOR;this.vx=0;this.vy=0;this.face=this.slot?-1:1;
   this.max=this.ch.hp;this.hp=this.max;this.dhp=this.max;
-  this.st='idle';this.t=0;this.stun=0;this.hd=0;this.landed=false;this.pry=0;this.slow=0;this.arm=0;this.cr=false;this.crAtk=false;this.jp=0;this.pcd=0;this.gOff=99;this.jf=0;
+  this.st='idle';this.t=0;this.stun=0;this.hd=0;this.landed=false;this.pry=0;this.slow=0;this.arm=0;this.cr=false;this.crAtk=false;this.jp=0;this.pcd=0;this.gOff=99;this.jf=0;this.pst=0;
   this.fb=[];this.fbCool=0;this.pv={};this.buf=null;this.bt=0;this.anim=0;this.tx=this.x;this.ty=this.y;
   this.hist=[];this.dj=false;this.inv=0;this.tapF=-99;this.tapB=-99;this.dashAt=-99;this.prevH=0;this.dd=1;this.mvk='p';this.mvd=DEFMV.p;
  }
@@ -376,8 +376,10 @@ class F{
   { // ジャストパリィ窓：ガードの「押した瞬間」だけ。押しっぱなし・連打・空中・技中では開かない
    if(this.pcd>0)this.pcd--; if(this.jf>0)this.jf--;
    if(this.jp>0&&--this.jp===0){this.pcd=JP_PEN;if(!QUIET){G.fx.push({kind:'txt',x:this.x,y:this.y-(this.ch.h||122)-14,t:0,life:22,txt:'MISS',col:'#94a3b8'});snd('jpmiss')}}
-   if(ge&&this.pcd<=0&&this.gOff>=JP_REL&&this.ground&&(this.st==='idle'||this.st==='guard'))this.jp=JP_WIN;
-   else if(ge&&this.pcd<=0&&this.jp===0&&this.ground&&(this.st==='idle'||this.st==='guard')){this.pcd=JP_PEN;if(!QUIET){G.fx.push({kind:'txt',x:this.x,y:this.y-(this.ch.h||122)-14,t:0,life:22,txt:'MISS',col:'#94a3b8'});snd('jpmiss')}} // 連打ペナルティ
+   if(this.st!=='hit')this.pst=0;
+   const can=this.ground&&(this.st==='idle'||this.st==='guard'||(this.st==='hit'&&this.pst));
+   if(ge&&this.pcd<=0&&this.gOff>=JP_REL&&can)this.jp=JP_WIN;
+   else if(ge&&this.pcd<=0&&this.jp===0&&can){this.pcd=JP_PEN;if(!QUIET){G.fx.push({kind:'txt',x:this.x,y:this.y-(this.ch.h||122)-14,t:0,life:22,txt:'MISS',col:'#94a3b8'});snd('jpmiss')}} // 連打ペナルティ
    if(inp.g&&go)this.gOff=0;else if(this.gOff<99)this.gOff++;
   }
   { // 入力履歴：相手の方向を「前(6)」にしたテンキー表記（上入力は横に丸める）
@@ -490,7 +492,7 @@ class F{
    if(ax1>opp.x-opp.hw&&ax0<opp.x+opp.hw&&ay1>opp.y-opp.bodyH&&ay0<opp.y){
     this.hd|=1<<i;
     const sw=this.mvk==='k'&&this.crAtk; // しゃがみキック＝足払い
-    deliver(opp,{dmg:Math.round((h.dmg+(sw?2:0))*this.ch.dm),kb:h.kb,stun:sw?26:h.stun,dir:this.face,lift:sw?6:(h.lift||0),slow:h.slow,heal:h.heal,jpc:h.jpc},this);
+    deliver(opp,{dmg:Math.round((h.dmg+(sw?2:0))*this.ch.dm*(h.jpc?(1<<G.chain):1)),kb:h.kb,stun:sw?26:h.stun,dir:this.face,lift:sw?6:(h.lift||0),slow:h.slow,heal:h.heal,jpc:h.jpc},this);
    }
   });
   // 着地イベント
@@ -505,7 +507,7 @@ class F{
     if(L.rec!==undefined)this.t=Math.max(this.t,mv.dur-L.rec);
    }
   }
-  if(this.t>=mv.dur){this.st='idle';this.t=0}
+  if(this.t>=mv.dur){this.st='idle';this.t=0;if(mv.jpc)G.chain=0}
  }
  stepFB(opp){
   for(let i=this.fb.length-1;i>=0;i--){
@@ -536,7 +538,8 @@ class F{
    if(!QUIET){G.fx.push({kind:'block',x:this.x+this.face*24,y:this.y-80,t:0,dir:1});G.flash=Math.max(G.flash,5);snd('block')}
    return null;
   }
-  if(this.jp>0&&!pl.throw&&pl.dir===-this.face&&this.ground){ // ジャストパリィ成功
+  if(this.jp>0&&!pl.throw&&(pl.dir===-this.face||pl.jpc)&&this.ground){ // ジャストパリィ成功（ジャストカウンターは背後からでもパリィできる）
+   G.chain=pl.jpc?Math.min(3,G.chain+1):0; // パリィ返しのたびに、次の反撃ダメージが倍
    this.jp=0;this.pcd=0;this.jf=14;this.inv=34;this.mvk='jpc';this.mvd=JPC;this.st=JPC.pose;this.t=0;this.hd=0;this.landed=false;this.pry=0;this.crAtk=false;this.vx=0;this.cr=false;this.hist.length=0;this.buf=null;
    this.mt=Math.min(100,this.mt+20);
    return 'jp';
@@ -579,24 +582,29 @@ function impact(v,pl,blocked){
 function deliver(opp,pl,by){
  const b=opp.takeHit(pl);
  if(b==='jp'){ // 攻撃側はゲージも貯まらず、近接ならはじかれて大きな隙
-  if(by&&!pl.fbp&&by.st!=='ko'){by.st='hit';by.t=0;by.stun=30;by.vx=-pl.dir*9;by.vy=Math.min(by.vy,0);by.hd=0;by.pry=0;by.arm=0;by.jp=0}
+  if(by&&!pl.fbp&&by.st!=='ko'){by.st='hit';by.t=0;by.stun=pl.jpc?44:34;by.vx=pl.jpc?0:-pl.dir*9;by.vy=Math.min(by.vy,0);by.hd=0;by.pry=0;by.arm=0;by.jp=0;by.inv=0;by.pst=1}
   G.hs=14;G.sl=40; // 一瞬止まってから、時間がゆっくりになる
   if(!QUIET){
    const x=opp.x+opp.face*30,y=opp.y-(opp.bodyH*.62);
    G.fx.push({kind:'jp',x,y,t:0,life:30});
-   G.cin={kind:'parry',t:0,life:78,x,y,col:opp.ch.col,lt:opp.ch.lt};
-   G.flash=26;G.shake=10;snd('jp');snd('boom');
+   if(pl.jpc){ // パリィ返し：反撃を反撃で打ち消した
+    G.cin={kind:'clash',t:0,life:92,x:(opp.x+(by?by.x:opp.x))/2,y,n:G.chain,col:opp.ch.col,lt:opp.ch.lt};
+    G.flash=26;G.shake=22+G.chain*4;snd('jp');snd('boom');snd('koku');
+   } else {
+    G.cin={kind:'parry',t:0,life:78,x,y,col:opp.ch.col,lt:opp.ch.lt};
+    G.flash=26;G.shake=10;snd('jp');snd('boom');
+   }
   }
   return;
  }
  if(by)by.mt=Math.min(100,by.mt+pl.dmg*1.3);
- if(pl.jpc&&b!==null){ // 黒閃：一撃ごとに止まって、また遅くなる
-  G.hs=16;G.sl=44;
+ if(pl.jpc&&b!==null){ // 反撃命中：止まって、また遅くなる
+  const mult=1<<G.chain;G.chain=0;G.hs=16;G.sl=44;
   if(!QUIET){
    const x=opp.x,y=opp.y-opp.bodyH*.55;
    G.fx.push({kind:'slash',x,y,t:0,life:22,dir:by?by.face:1});
-   G.cin={kind:'koku',t:0,life:96,x,y,col:by?by.ch.col:'#fff',lt:by?by.ch.lt:'#fff'};
-   G.flash=0;G.shake=34;snd('koku');
+   G.cin={kind:'koku',t:0,life:96,x,y,mult,col:by?by.ch.col:'#fff',lt:by?by.ch.lt:'#fff'};
+   G.flash=0;G.shake=34+mult*3;snd('koku');
   }
  }
  if(b!==null)impact(opp,pl,b);
@@ -758,7 +766,7 @@ function netLost(t){ endGame(); Net.leave(true); showMsg(t); }
 
 /* ================= 試合進行 ================= */
 function startMatch(chs,mode,my,mid){
- G.hs=0;G.sl=0;G.cin=null;G.mid=mid||'';G.seq=0;G.mode=mode;G.my=my;G.chs=chs;G.sc=[0,0];G.rd=1;G.fx=[];G.oppRm=false;G.myRm=false;
+ G.hs=0;G.sl=0;G.chain=0;G.cin=null;G.mid=mid||'';G.seq=0;G.mode=mode;G.my=my;G.chs=chs;G.sc=[0,0];G.rd=1;G.fx=[];G.oppRm=false;G.myRm=false;
  fs=[0,1].map(i=>new F(i,chs[i],'local'));
  G.ai={};G.auth=true;if(mode==='online')rbInit();else RB.on=false;
  inGame=true;hideOv();$('touch').style.display=('ontouchstart' in window)?'block':'none';
@@ -767,7 +775,7 @@ function startMatch(chs,mode,my,mid){
 }
 function setPhase(ph,m){ applyPhase(ph,Object.assign({ph},m)); }
 function applyPhase(ph,m){
- G.phase=ph;G.pt=0;G.hs=0;G.sl=0;G.cin=null;if(m.q)G.seq=m.q;
+ G.phase=ph;G.pt=0;G.hs=0;G.sl=0;G.chain=0;G.cin=null;if(m.q)G.seq=m.q;
  if(m.sc)G.sc=m.sc.slice();
  if(m.rd)G.rd=m.rd;
  if(ph==='intro'){ fs.forEach(f=>f.reset()); $('end').classList.remove('on'); G.fx=[]; }
@@ -810,13 +818,13 @@ function encInp(o,cmd){
 }
 function decInp(b){ return {l:!!(b&1),r:!!(b&2),u:!!(b&4),d:!!(b&8),p:!!(b&16),k:!!(b&32),s:!!(b&64),g:!!(b&128),t:!!(b&256),cmd:CMDS[(b>>9)&7]||null}; }
 function snapshot(){
- return JSON.stringify({g:{phase:G.phase,pt:G.pt,rd:G.rd,sc:G.sc,w:G.w,reason:G.reason,time:G.time,hs:G.hs,sl:G.sl},
+ return JSON.stringify({g:{phase:G.phase,pt:G.pt,rd:G.rd,sc:G.sc,w:G.w,reason:G.reason,time:G.time,hs:G.hs,sl:G.sl,chain:G.chain},
   f:fs.map(f=>{const o={};for(const k in f){if(k==='ch'||k==='ctl'||k==='tx'||k==='ty'||k==='dhp')continue;o[k]=f[k]}return o})});
 }
 function restore(str){ const o=JSON.parse(str); Object.assign(G,o.g); o.f.forEach((d,i)=>Object.assign(fs[i],d)); }
 function simStep(inps){
  G.pt++;
- if(G.hs>0){G.hs--;return} // ヒットストップ：完全停止
+ if(G.hs>0){G.hs--;for(const f of fs){const i=inps[f.slot];f.pv.g=!!(i&&i.g)}return} // ヒットストップ：完全停止（止まっている間に押したガードは無効）
  if(G.sl>0&&(--G.sl)%3)return; // スロー：3回に1回だけ進む
  const go=G.phase==='fight',[a,b]=fs;
  for(const f of fs){ const opp=fs[1-f.slot]; f.step(inps[f.slot],opp,go); f.stepFB(opp); }
@@ -1428,6 +1436,7 @@ const sr=n=>{const x=Math.sin(n*12.9898)*43758.5453;return x-Math.floor(x)};
 function cinCamera(c){
  const t=c.t;let z=1,r=0;
  if(c.kind==='parry'){z=1+.34*Math.min(1,t/5)*Math.max(0,1-Math.max(0,t-16)/56)}
+ else if(c.kind==='clash'){const k=t<22?Math.min(1,t/3):Math.max(0,1-(t-22)/62);z=1.08+(.42+.08*c.n)*k;r=(.05+.02*c.n)*Math.sin(t*1.9)*Math.max(0,1-t/50)}
  else{const k=t<20?Math.min(1,t/3):Math.max(0,1-(t-20)/58);z=1.1+.5*k;r=.07*Math.sin(t*1.3)*Math.max(0,1-t/46)}
  c.z=z;ctx.translate(c.x,c.y);ctx.scale(z,z);ctx.rotate(r);ctx.translate(-c.x,-c.y);
 }
@@ -1437,16 +1446,16 @@ function rays(x,y,n,r0,r1,w,col,seed){
   ctx.beginPath();ctx.moveTo(x+Math.cos(a)*a0,y+Math.sin(a)*a0);ctx.lineTo(x+Math.cos(a)*a1,y+Math.sin(a)*a1);ctx.stroke()}
  ctx.lineCap='butt';
 }
-function bolt(x,y,a,len,seed,w){
+function bolt(x,y,a,len,seed,w,outer,inner){
  const pts=[[x,y]],n=Math.ceil(len/24);
  for(let i=1;i<=n;i++){const d=i*24,j=(sr(seed+i*7.1)-.5)*40*Math.min(1,i/3);pts.push([x+Math.cos(a)*d-Math.sin(a)*j,y+Math.sin(a)*d+Math.cos(a)*j])}
  const path=()=>{ctx.beginPath();pts.forEach((q,i)=>i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]))};
  ctx.lineJoin='round';
- path();ctx.strokeStyle='#ff2a2a';ctx.lineWidth=w+8;ctx.stroke();
- path();ctx.strokeStyle='#060006';ctx.lineWidth=w;ctx.stroke();
+ path();ctx.strokeStyle=outer||'#ff2a2a';ctx.lineWidth=w+8;ctx.stroke();
+ path();ctx.strokeStyle=inner||'#060006';ctx.lineWidth=w;ctx.stroke();
 }
 function cinBack(c){
- const t=c.t,p=t/c.life;
+ const t=c.t;
  ctx.save();
  if(c.kind==='parry'){
   const a=Math.max(0,1-t/60)*.62;
@@ -1454,25 +1463,42 @@ function cinBack(c){
   const g=ctx.createRadialGradient(c.x,c.y,10,c.x,c.y,260);g.addColorStop(0,`rgba(150,255,240,${.55*Math.max(0,1-t/26)})`);g.addColorStop(1,'rgba(150,255,240,0)');
   ctx.fillStyle=g;ctx.fillRect(c.x-300,c.y-300,600,600);
   if(t<40)rays(c.x,c.y,52,70,620,2.6,`rgba(190,255,250,${.9*(1-t/40)})`,Math.floor(t/2)*31);
+ } else if(c.kind==='clash'){
+  const a=t<70?.8:.8*(1-(t-70)/22);
+  ctx.fillStyle=`rgba(8,4,0,${a})`;ctx.fillRect(-W,-H,W*3,H*3);
+  const g=ctx.createRadialGradient(c.x,c.y,10,c.x,c.y,380);g.addColorStop(0,`rgba(255,220,80,${.7*Math.max(0,1-t/46)})`);g.addColorStop(1,'rgba(255,160,40,0)');
+  ctx.fillStyle=g;ctx.fillRect(c.x-400,c.y-400,800,800);
+  if(t<70){rays(c.x,c.y,70+c.n*20,60,760,3.2,`rgba(255,244,200,${.9*(1-t/70)})`,Math.floor(t/2)*19+3);rays(c.x,c.y,30,60,600,5,`rgba(255,200,60,${.7*(1-t/70)})`,Math.floor(t/3)*7)}
  } else {
   const a=t<64?.86:.86*(1-(t-64)/32);
   ctx.fillStyle=`rgba(0,0,0,${a})`;ctx.fillRect(-W,-H,W*3,H*3);
   const g=ctx.createRadialGradient(c.x,c.y,10,c.x,c.y,340);g.addColorStop(0,`rgba(255,40,40,${.5*Math.max(0,1-t/40)})`);g.addColorStop(1,'rgba(255,40,40,0)');
   ctx.fillStyle=g;ctx.fillRect(c.x-360,c.y-360,720,720);
-  if(t<60)rays(c.x,c.y,60,60,700,3,`rgba(255,255,255,${.85*(1-t/60)})`,Math.floor(t/2)*17+5);
+  if(t<60)rays(c.x,c.y,60+(c.mult>1?30:0),60,700,3,`rgba(255,255,255,${.85*(1-t/60)})`,Math.floor(t/2)*17+5);
  }
  ctx.restore();
 }
 function cinFront(c){
  const t=c.t;
- if(c.kind!=='koku')return;
+ if(c.kind==='parry')return;
  ctx.save();
+ if(c.kind==='clash'){
+  if(t<66){
+   ctx.globalAlpha=Math.min(1,(76-t)/30);
+   const n=(t<26?12:7)+c.n*3;
+   for(let i=0;i<n;i++){const sd=Math.floor(t/2)*11+i*6.1;bolt(c.x,c.y,sr(sd)*6.2832,200+sr(sd+1)*380,sd,3+sr(sd+2)*4,i%2?'#fde047':'#ffffff',i%2?'#7c2d12':'#0a0a0a')}
+  }
+  ctx.globalAlpha=1;
+  for(let k=0;k<4+c.n;k++){const q=t-k*4;if(q<0||q>30)continue;ctx.strokeStyle=k%2?'#fde047':'#fff';ctx.lineWidth=(k%2?8:4)*(1-q/30)+1;ctx.globalAlpha=1-q/30;ctx.beginPath();ctx.arc(c.x,c.y,26+q*28,0,7);ctx.stroke()}
+  ctx.restore();return;
+ }
+ const mu=c.mult>1?1.6:1;
  if(t<60){
-  const n=t<24?11:6;ctx.globalAlpha=Math.min(1,(70-t)/30);
+  const n=Math.round((t<24?11:6)*mu);ctx.globalAlpha=Math.min(1,(70-t)/30);
   for(let i=0;i<n;i++){const sd=Math.floor(t/2)*13+i*5.3;bolt(c.x,c.y,sr(sd)*6.2832,180+sr(sd+1)*330,sd,3+sr(sd+2)*4)}
  }
  ctx.globalAlpha=1;
- for(let k=0;k<3;k++){const q=t-k*4;if(q<0||q>26)continue;ctx.strokeStyle=k?'#ff2a2a':'#fff';ctx.lineWidth=(k?7:4)*(1-q/26)+1;ctx.globalAlpha=1-q/26;ctx.beginPath();ctx.arc(c.x,c.y,26+q*24,0,7);ctx.stroke()}
+ for(let k=0;k<3*mu;k++){const q=t-k*4;if(q<0||q>26)continue;ctx.strokeStyle=k%2?'#ff2a2a':'#fff';ctx.lineWidth=((k%2)?7:4)*(1-q/26)+1;ctx.globalAlpha=1-q/26;ctx.beginPath();ctx.arc(c.x,c.y,26+q*24,0,7);ctx.stroke()}
  ctx.restore();
 }
 function cinScreen(c){
@@ -1480,9 +1506,13 @@ function cinScreen(c){
  if(c.kind==='koku'){
   if(t<2){ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H)}
   else if(t<5){ctx.fillStyle=`rgba(255,20,20,${.5-(t-2)*.12})`;ctx.fillRect(0,0,W,H)}
+ } else if(c.kind==='clash'){
+  if(t<3){ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H)}
+  else if(t<6){ctx.fillStyle=`rgba(255,210,60,${.6-(t-3)*.18})`;ctx.fillRect(0,0,W,H)}
  }
- const k=c.kind==='koku'?Math.min(1,t/8)*(t>78?(96-t)/18:1):Math.min(1,t/8)*Math.max(0,1-t/78);
- const g=ctx.createRadialGradient(W/2,H/2,H*.35,W/2,H/2,H*.9);g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(1,`rgba(${c.kind==='koku'?'30,0,0':'0,10,24'},${.7*k})`);
+ const L=c.life,k=c.kind==='parry'?Math.min(1,t/8)*Math.max(0,1-t/78):Math.min(1,t/8)*(t>L-18?(L-t)/18:1);
+ const col=c.kind==='koku'?'30,0,0':c.kind==='clash'?'40,20,0':'0,10,24';
+ const g=ctx.createRadialGradient(W/2,H/2,H*.35,W/2,H/2,H*.9);g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(1,`rgba(${col},${.7*k})`);
  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
  ctx.restore();
 }
@@ -1495,17 +1525,42 @@ function cinText(c){
   ctx.lineWidth=sz/5;ctx.strokeStyle='#0e7490';ctx.strokeText('JUST PARRY',0,0);
   ctx.lineWidth=sz/12;ctx.strokeStyle='#fff';ctx.strokeText('JUST PARRY',0,0);
   const g=ctx.createLinearGradient(0,-sz*.8,0,0);g.addColorStop(0,'#ecfeff');g.addColorStop(1,'#5eead4');ctx.fillStyle=g;ctx.fillText('JUST PARRY',0,0);
+ } else if(c.kind==='clash'&&t<80){
+  const sc=1+Math.max(0,(10-t))*.16,al=Math.min(1,(80-t)/20),sz=84*sc;
+  ctx.globalAlpha=al;ctx.save();ctx.translate(W/2,H*.27);ctx.transform(1,0,-.22,1,0,0);
+  ctx.font=`900 italic ${sz}px Impact,"Arial Black",sans-serif`;
+  ctx.lineWidth=sz/5;ctx.strokeStyle='#7c2d12';ctx.strokeText('PARRY CLASH!',0,0);
+  ctx.lineWidth=sz/12;ctx.strokeStyle='#fff';ctx.strokeText('PARRY CLASH!',0,0);
+  const g=ctx.createLinearGradient(0,-sz*.8,0,0);g.addColorStop(0,'#fef9c3');g.addColorStop(1,'#f59e0b');ctx.fillStyle=g;ctx.fillText('PARRY CLASH!',0,0);ctx.restore();
+  const m=1<<c.n,sz2=(120+c.n*30)*(1+Math.max(0,(14-t))*.12);
+  ctx.save();ctx.translate(W/2,H*.56);ctx.rotate(-.06);
+  ctx.font=`900 italic ${sz2}px Impact,"Arial Black",sans-serif`;
+  ctx.lineWidth=sz2/6;ctx.strokeStyle='#fff';ctx.strokeText('×'+m,0,0);ctx.lineWidth=sz2/12;ctx.strokeStyle='#450a0a';ctx.strokeText('×'+m,0,0);
+  ctx.fillStyle=c.n>=3?'#ef4444':'#fb923c';ctx.fillText('×'+m,0,0);ctx.restore();
+  ctx.font='900 italic 22px Impact,"Arial Black",sans-serif';ctx.lineWidth=5;ctx.strokeStyle='#450a0a';ctx.fillStyle='#fff';
+  const tx=c.n>=3?'次の反撃ダメージ ×8（上限）':'次の反撃ダメージ ×'+m;ctx.strokeText(tx,W/2,H*.56+34);ctx.fillText(tx,W/2,H*.56+34);
  } else if(c.kind==='koku'&&t>=3&&t<84){
-  const sc=1+Math.max(0,(12-t))*.1,al=Math.min(1,(84-t)/20),sz=190*sc;
-  ctx.globalAlpha=al;ctx.translate(W/2,H*.44);ctx.rotate(-.05);
-  ctx.font=`900 ${sz}px "Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif`;
-  ctx.lineWidth=sz/7;ctx.strokeStyle='#fff';ctx.strokeText('黒閃',0,0);
-  ctx.lineWidth=sz/13;ctx.strokeStyle='#ff1f1f';ctx.strokeText('黒閃',0,0);
-  ctx.fillStyle='#050005';ctx.fillText('黒閃',0,0);
-  ctx.font=`900 italic ${sz*.2}px Impact,"Arial Black",sans-serif`;ctx.lineWidth=sz*.035;ctx.strokeStyle='#050005';ctx.fillStyle='#fff';
-  ctx.strokeText('JUST COUNTER!',0,sz*.26);ctx.fillText('JUST COUNTER!',0,sz*.26);
+  const sc=1+Math.max(0,(12-t))*.1,al=Math.min(1,(84-t)/20),sz=96*sc;
+  ctx.globalAlpha=al;ctx.translate(W/2,H*.3);ctx.transform(1,0,-.22,1,0,0);
+  ctx.font=`900 italic ${sz}px Impact,"Arial Black",sans-serif`;
+  ctx.lineWidth=sz/5;ctx.strokeStyle='#7f1d1d';ctx.strokeText('JUST COUNTER!',0,0);
+  ctx.lineWidth=sz/12;ctx.strokeStyle='#fff';ctx.strokeText('JUST COUNTER!',0,0);
+  ctx.fillStyle='#fecaca';ctx.fillText('JUST COUNTER!',0,0);
+  if(c.mult>1){ctx.font=`900 italic ${sz*1.1}px Impact,"Arial Black",sans-serif`;ctx.lineWidth=sz/6;ctx.strokeStyle='#450a0a';ctx.fillStyle='#fb923c';ctx.strokeText('×'+c.mult+' DAMAGE',0,sz*.95);ctx.fillText('×'+c.mult+' DAMAGE',0,sz*.95)}
  }
  ctx.restore();
+}
+/* 反撃が当たる直前に、受ける側に縮む輪を出す（この瞬間に合わせてガード＝パリィ返し）*/
+function drawTelegraph(){
+ for(const f of fs){
+  if(f.st!=='rush'||!f.mvd||!f.mvd.jpc||f.t<2||f.t>=10)continue;
+  const v=fs[1-f.slot];if(!v.pst||v.st!=='hit')continue;
+  const k=(10-f.t)/8,x=v.x,y=v.y-v.bodyH*.55,r=22+k*78,pulse=.6+.4*Math.sin(G.tick*.9);
+  ctx.save();ctx.globalAlpha=.55+.45*pulse;
+  ctx.strokeStyle='#fde047';ctx.lineWidth=5;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.stroke();
+  ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y,22,0,7);ctx.stroke();
+  ctx.restore();
+ }
 }
 function draw(){
  ctx.setTransform(1,0,0,1,0,0);
@@ -1519,11 +1574,13 @@ function draw(){
  if(fs.length&&G.phase!=='idle'){
   for(const f of fs)drawFighter(f,G.mode==='online'&&f.slot===G.my);
   for(const f of fs)drawFB(f);
+  drawTelegraph();
   if(cn)cinFront(cn);
   drawFX();
   ctx.setTransform(1,0,0,1,0,0);
   if(cn)cinScreen(cn);
   drawHUD();drawBanner();
+  if(G.chain>0&&G.phase==='fight'){ctx.save();ctx.textAlign='center';ctx.font='900 italic 26px Impact,"Arial Black",sans-serif';ctx.lineWidth=6;ctx.strokeStyle='#450a0a';ctx.fillStyle='#fb923c';const m='CLASH CHAIN ×'+(1<<G.chain);ctx.strokeText(m,W/2,96);ctx.fillText(m,W/2,96);ctx.restore()}
   if(cn)cinText(cn);
   if(G.flash>0){ctx.fillStyle=`rgba(255,255,255,${G.flash/26*.75})`;ctx.fillRect(0,0,W,H)}
  } else {
